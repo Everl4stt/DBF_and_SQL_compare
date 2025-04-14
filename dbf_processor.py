@@ -1,35 +1,20 @@
 import os
 from dbfread import DBF
-from collections import defaultdict
-from typing import Dict, List, Any, Tuple, Optional
 import pandas as pd
 import logging
+from typing import Dict, List
 
 
 class DBFProcessor:
     def __init__(self):
         self.logger = logging.getLogger('DBFProcessor')
 
-    @staticmethod
-    def validate_directory(input_dir: str) -> bool:
-        """Проверяет существует ли директория и содержит ли DBF файлы"""
+    def merge_dbf_files(self, input_dir: str) -> pd.DataFrame:
+        """Объединяет все DBF файлы из указанной директории в один DataFrame"""
         if not os.path.isdir(input_dir):
             raise ValueError(f"Директория не существует: {input_dir}")
 
-        dbf_files = [f for f in os.listdir(input_dir) if f.lower().endswith('.dbf')]
-        if not dbf_files:
-            raise ValueError(f"В директории нет DBF файлов: {input_dir}")
-        return True
-
-    def process_to_dataframe(self, input_dir: str) -> pd.DataFrame:
-        """
-        Обрабатывает DBF файлы и возвращает DataFrame
-
-        :param input_dir: Путь к директории с DBF
-        :return: DataFrame с результатами
-        """
-        self.validate_directory(input_dir)
-        unified_data = []
+        all_data = []
 
         for filename in os.listdir(input_dir):
             if not filename.lower().endswith('.dbf'):
@@ -39,33 +24,32 @@ class DBFProcessor:
             try:
                 table = DBF(filepath, encoding='cp866')
                 for record in table:
-                    sn = record.get('SN')
-                    if sn is None:
-                        continue
-
-                    for field, value in record.items():
-                        if field != 'SN':
-                            unified_data.append({
-                                'SN': str(sn),
-                                'Source': filename,
-                                'Field': field,
-                                'Value': str(value) if value is not None else ''
-                            })
+                    record['source_file'] = filename
+                    all_data.append(record)
             except Exception as e:
-                self.logger.error(f"Ошибка обработки файла {filename}: {str(e)}")
+                self.logger.error(f"Ошибка чтения файла {filename}: {str(e)}")
                 continue
 
-        return pd.DataFrame(unified_data)
+        if not all_data:
+            raise ValueError("Не найдено ни одного DBF файла с данными")
 
-    def extract_unique_values(self, df: pd.DataFrame, field_names: List[str]) -> List[str]:
-        """
-        Извлекает уникальные значения указанных полей
+        return pd.DataFrame(all_data)
 
-        :param df: DataFrame с данными
-        :param field_names: Список имен полей
-        :return: Список уникальных значений
-        """
-        if df.empty:
-            return []
+    def extract_spn_dato_pairs(self, df: pd.DataFrame) -> List[Dict]:
+        """Извлекает пары SPN и DATO для каждого файла"""
+        pairs = []
+        files = df['source_file'].unique()
 
-        return df[df['Field'].isin(field_names)]['Value'].unique().tolist()
+        for file in files:
+            file_df = df[df['source_file'] == file]
+            for _, row in file_df.iterrows():
+                if 'SPN' in row and 'DATO' in row:
+                    pairs.append({
+                        'SN': row.get('SN', ''),
+                        'SPN': row['SPN'],
+                        'DATO': row['DATO'],
+                        'source_file': file,
+                        'original_data': row.to_dict()
+                    })
+
+        return pairs

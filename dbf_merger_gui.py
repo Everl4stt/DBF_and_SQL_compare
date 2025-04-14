@@ -1,7 +1,8 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import ttk, filedialog, messagebox
 import os
 import logging
+from threading import Thread
 from dbf_merger import DBFMerger
 
 
@@ -9,12 +10,15 @@ class DBFMergerApp:
     def __init__(self, root):
         self.root = root
         self.root.title("DBF и MariaDB обработчик")
-        self.root.geometry("800x650")
+        self.root.geometry("850x700")
 
         self.setup_logging()
         self.setup_styles()
         self.create_widgets()
-        self.dbf_merger = DBFMerger()
+
+        self.merger = DBFMerger()
+        self.processing = False
+        self.results = None
 
     def setup_logging(self):
         logging.basicConfig(
@@ -26,181 +30,179 @@ class DBFMergerApp:
     def setup_styles(self):
         style = ttk.Style()
         style.theme_use('clam')
-
-        style.configure('TFrame', background='#f0f0f0')
-        style.configure('TLabel', background='#f0f0f0', font=('Arial', 10))
         style.configure('TButton', font=('Arial', 10), padding=5)
-        style.configure('TEntry', font=('Arial', 10), padding=5)
-        style.configure('TLabelframe', background='#f0f0f0')
-        style.configure('TLabelframe.Label', background='#f0f0f0')
-
-        style.map('TButton',
-                  foreground=[('active', 'black'), ('!disabled', 'black')],
-                  background=[('active', '#e0e0e0'), ('!disabled', '#f0f0f0')])
-
-        style.configure('Accent.TButton', foreground='white', background='#0078d7')
+        style.configure('Red.TButton', foreground='red')
 
     def create_widgets(self):
-        # Main Frame
-        main_frame = ttk.Frame(self.root, padding="15")
+        main_frame = ttk.Frame(self.root, padding=10)
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         # DBF Section
-        dbf_frame = ttk.LabelFrame(main_frame, text="DBF Файлы", padding=10)
+        dbf_frame = ttk.LabelFrame(main_frame, text="DBF файлы", padding=10)
         dbf_frame.pack(fill=tk.X, pady=5)
 
-        ttk.Label(dbf_frame, text="Каталог с DBF:").grid(row=0, column=0, sticky=tk.W, pady=3)
+        ttk.Label(dbf_frame, text="Каталог с DBF:").grid(row=0, column=0, sticky=tk.W)
         self.input_dir = tk.StringVar()
         ttk.Entry(dbf_frame, textvariable=self.input_dir, width=60).grid(row=0, column=1, padx=5)
         ttk.Button(dbf_frame, text="Обзор...", command=self.browse_input_dir).grid(row=0, column=2)
 
-        ttk.Label(dbf_frame, text="Файл результатов DBF:").grid(row=1, column=0, sticky=tk.W, pady=3)
-        self.dbf_output = tk.StringVar()
-        ttk.Entry(dbf_frame, textvariable=self.dbf_output, width=60).grid(row=1, column=1, padx=5)
-        ttk.Button(dbf_frame, text="Обзор...", command=lambda: self.browse_output_file(self.dbf_output)).grid(row=1,
-                                                                                                              column=2)
-
         # DB Section
-        db_frame = ttk.LabelFrame(main_frame, text="MariaDB Запросы", padding=10)
+        db_frame = ttk.LabelFrame(main_frame, text="MariaDB", padding=10)
         db_frame.pack(fill=tk.X, pady=5)
 
-        # DB Connection
-        conn_frame = ttk.Frame(db_frame)
-        conn_frame.pack(fill=tk.X, pady=5)
-
-        ttk.Label(conn_frame, text="Хост:").grid(row=0, column=0, sticky=tk.W)
+        ttk.Label(db_frame, text="Хост:").grid(row=0, column=0, sticky=tk.W)
         self.db_host = tk.StringVar(value="localhost")
-        ttk.Entry(conn_frame, textvariable=self.db_host, width=20).grid(row=0, column=1, padx=5, sticky=tk.W)
+        ttk.Entry(db_frame, textvariable=self.db_host, width=20).grid(row=0, column=1, sticky=tk.W)
 
-        ttk.Label(conn_frame, text="Пользователь:").grid(row=0, column=2, sticky=tk.W, padx=10)
+        ttk.Label(db_frame, text="Пользователь:").grid(row=0, column=2, sticky=tk.W, padx=10)
         self.db_user = tk.StringVar(value="root")
-        ttk.Entry(conn_frame, textvariable=self.db_user, width=20).grid(row=0, column=3, padx=5, sticky=tk.W)
+        ttk.Entry(db_frame, textvariable=self.db_user, width=20).grid(row=0, column=3, sticky=tk.W)
 
-        ttk.Label(conn_frame, text="Пароль:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        ttk.Label(db_frame, text="Пароль:").grid(row=1, column=0, sticky=tk.W, pady=5)
         self.db_password = tk.StringVar()
-        ttk.Entry(conn_frame, textvariable=self.db_password, width=20, show="*").grid(row=1, column=1, padx=5,
-                                                                                      sticky=tk.W)
+        ttk.Entry(db_frame, textvariable=self.db_password, width=20, show="*").grid(row=1, column=1, sticky=tk.W)
 
-        ttk.Label(conn_frame, text="База данных:").grid(row=1, column=2, sticky=tk.W, padx=10)
+        ttk.Label(db_frame, text="База данных:").grid(row=1, column=2, sticky=tk.W, padx=10)
         self.db_name = tk.StringVar()
-        ttk.Entry(conn_frame, textvariable=self.db_name, width=20).grid(row=1, column=3, padx=5, sticky=tk.W)
+        ttk.Entry(db_frame, textvariable=self.db_name, width=20).grid(row=1, column=3, sticky=tk.W)
 
-        # SQL Query
-        ttk.Label(db_frame, text="SQL запрос (используйте %s для подстановки полиса и даты окончания события):").pack(anchor=tk.W)
-        self.sql_query = tk.Text(db_frame, height=5, width=80, wrap=tk.WORD)
-        self.sql_query.pack(fill=tk.X, pady=5)
 
-        ttk.Label(db_frame, text="Файл результатов SQL:").pack(anchor=tk.W)
-        self.db_output = tk.StringVar()
-        output_frame = ttk.Frame(db_frame)
-        output_frame.pack(fill=tk.X)
-        ttk.Entry(output_frame, textvariable=self.db_output, width=60).pack(side=tk.LEFT, padx=5)
-        ttk.Button(output_frame, text="Обзор...", command=lambda: self.browse_output_file(self.db_output)).pack(
-            side=tk.LEFT)
+        # Output Section
+        output_frame = ttk.LabelFrame(main_frame, text="Результаты", padding=10)
+        output_frame.pack(fill=tk.X, pady=5)
 
-        # Process Button
+        ttk.Label(output_frame, text="Файл для сохранения:").grid(row=0, column=0, sticky=tk.W)
+        self.output_file = tk.StringVar()
+        ttk.Entry(output_frame, textvariable=self.output_file, width=60).grid(row=0, column=1, padx=5)
+        ttk.Button(output_frame, text="Обзор...", command=self.browse_output_file).grid(row=0, column=2)
+
+        # Buttons
         btn_frame = ttk.Frame(main_frame)
-        btn_frame.pack(fill=tk.X, pady=15)
-        ttk.Button(
-            btn_frame,
-            text="Начать обработку",
-            command=self.process_files,
-            style='Accent.TButton'
-        ).pack(ipadx=10, ipady=5)
+        btn_frame.pack(fill=tk.X, pady=10)
 
-        # Status Bar
-        self.status_var = tk.StringVar(value="Готов к работе")
-        status_bar = ttk.Label(
-            main_frame,
-            textvariable=self.status_var,
-            relief=tk.SUNKEN,
-            anchor=tk.W,
-            padding=(5, 2)
-        )
-        status_bar.pack(fill=tk.X, pady=(5, 0))
+        self.process_btn = ttk.Button(btn_frame, text="Запустить обработку", command=self.start_processing)
+        self.process_btn.pack(side=tk.LEFT, padx=5)
+
+        self.stop_btn = ttk.Button(btn_frame, text="Остановить", command=self.stop_processing, style='Red.TButton',
+                                   state=tk.DISABLED)
+        self.stop_btn.pack(side=tk.LEFT, padx=5)
+
+        self.compare_btn = ttk.Button(btn_frame, text="Сравнить результаты", command=self.compare_results,
+                                      state=tk.DISABLED)
+        self.compare_btn.pack(side=tk.LEFT, padx=5)
+
+        # Status
+        self.status = tk.StringVar(value="Готов к работе")
+        ttk.Label(main_frame, textvariable=self.status, relief=tk.SUNKEN).pack(fill=tk.X, pady=5)
+
+        # Log
+        log_frame = ttk.LabelFrame(main_frame, text="Лог", padding=10)
+        log_frame.pack(fill=tk.BOTH, expand=True)
+
+        self.log_text = tk.Text(log_frame, height=10, state=tk.DISABLED)
+        self.log_text.pack(fill=tk.BOTH, expand=True)
+
+        scrollbar = ttk.Scrollbar(self.log_text)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.log_text.config(yscrollcommand=scrollbar.set)
+        scrollbar.config(command=self.log_text.yview)
 
     def browse_input_dir(self):
         dir_path = filedialog.askdirectory(title="Выберите каталог с DBF файлами")
         if dir_path:
             self.input_dir.set(dir_path)
-            default_dbf = os.path.join(dir_path, "dbf_results.xlsx")
-            default_db = os.path.join(dir_path, "sql_results.xlsx")
-            self.dbf_output.set(default_dbf)
-            self.db_output.set(default_db)
+            self.output_file.set(os.path.join(dir_path, "result_comparison.xlsx"))
 
-    def browse_output_file(self, target_var):
-        initial_file = target_var.get() or "output.xlsx"
+    def browse_output_file(self):
         file_path = filedialog.asksaveasfilename(
             title="Укажите файл для сохранения",
             defaultextension=".xlsx",
-            filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")],
-            initialfile=os.path.basename(initial_file),
-            initialdir=os.path.dirname(initial_file) or os.path.expanduser("~")
+            filetypes=[("Excel files", "*.xlsx")]
         )
         if file_path:
-            target_var.set(file_path)
+            self.output_file.set(file_path)
 
-    def process_files(self):
-        # Validate inputs
+    def log_message(self, message):
+        self.log_text.config(state=tk.NORMAL)
+        self.log_text.insert(tk.END, message + "\n")
+        self.log_text.see(tk.END)
+        self.log_text.config(state=tk.DISABLED)
+
+    def start_processing(self):
         if not self.input_dir.get():
-            messagebox.showerror("Ошибка", "Не выбран каталог с DBF файлами!")
+            messagebox.showerror("Ошибка", "Укажите каталог с DBF файлами!")
             return
 
-        if not self.dbf_output.get():
-            messagebox.showerror("Ошибка", "Не указан файл для сохранения DBF результатов!")
+        self.processing = True
+        self.process_btn.config(state=tk.DISABLED)
+        self.stop_btn.config(state=tk.NORMAL)
+        self.compare_btn.config(state=tk.DISABLED)
+        self.status.set("Обработка...")
+        self.log_message("Начало обработки")
+
+        db_params = {
+            'host': self.db_host.get(),
+            'user': self.db_user.get(),
+            'password': self.db_password.get(),
+            'database': self.db_name.get(),
+            'sql_query': self.sql_query.get("1.0", tk.END).strip()
+        }
+
+        Thread(target=self.run_processing, args=(db_params,), daemon=True).start()
+
+    def run_processing(self, db_params):
+        try:
+            self.results = self.merger.process(self.input_dir.get(), db_params)
+
+            if self.merger.should_stop:
+                self.log_message("Обработка прервана пользователем")
+                self.status.set("Обработка прервана")
+            else:
+                self.log_message("Обработка завершена успешно")
+                self.status.set("Готово")
+                self.compare_btn.config(state=tk.NORMAL)
+
+        except Exception as e:
+            self.log_message(f"Ошибка: {str(e)}")
+            self.status.set("Ошибка обработки")
+        finally:
+            self.processing = False
+            self.process_btn.config(state=tk.NORMAL)
+            self.stop_btn.config(state=tk.DISABLED)
+
+    def stop_processing(self):
+        self.merger.stop()
+        self.status.set("Завершение...")
+        self.log_message("Получена команда остановки...")
+
+    def compare_results(self):
+        if not self.results or self.output_file.get() == "":
+            messagebox.showerror("Ошибка", "Нет данных для сравнения или не указан файл!")
             return
-
-        db_params = {}
-        if self.db_name.get():
-            if not self.db_output.get():
-                messagebox.showerror("Ошибка", "Не указан файл для сохранения SQL результатов!")
-                return
-
-            if not self.sql_query.get("1.0", tk.END).strip():
-                messagebox.showerror("Ошибка", "Не указан SQL запрос!")
-                return
-
-            db_params = {
-                'host': self.db_host.get(),
-                'user': self.db_user.get(),
-                'password': self.db_password.get(),
-                'database': self.db_name.get(),
-                'sql_query': self.sql_query.get("1.0", tk.END).strip()
-            }
 
         try:
-            self.status_var.set("Идет обработка...")
-            self.root.update()
+            self.status.set("Сравнение результатов...")
+            self.log_message("Начато сравнение результатов")
 
-            success = self.dbf_merger.process_all(
-                input_dir=self.input_dir.get(),
-                dbf_output=self.dbf_output.get(),
-                db_output=self.db_output.get(),
-                db_params=db_params
+            comparison = self.merger.comparator.compare_results(
+                self.results['dbf'],
+                self.results['db']
             )
 
-            if success:
-                self.status_var.set("Обработка завершена успешно")
-                messagebox.showinfo(
-                    "Готово",
-                    "Обработка завершена успешно!\n\n"
-                    f"DBF результаты: {self.dbf_output.get()}\n"
-                    f"SQL результаты: {self.db_output.get() if db_params else 'Не выполнялись'}"
-                )
-            else:
-                self.status_var.set("Ошибка обработки")
-                messagebox.showerror(
-                    "Ошибка",
-                    "В процессе обработки возникли ошибки. Проверьте лог-файл."
-                )
+            self.merger.comparator.save_comparison(
+                comparison,
+                self.output_file.get()
+            )
+
+            self.log_message(f"Результаты сохранены в {self.output_file.get()}")
+            self.status.set("Сравнение завершено")
+
+            messagebox.showinfo("Готово", "Сравнение результатов завершено!")
+
         except Exception as e:
-            self.status_var.set("Ошибка обработки")
-            messagebox.showerror(
-                "Ошибка",
-                f"Произошла ошибка:\n{str(e)}\n\nПроверьте лог-файл для деталей."
-            )
-        finally:
-            self.root.focus_force()
+            self.log_message(f"Ошибка сравнения: {str(e)}")
+            self.status.set("Ошибка сравнения")
+            messagebox.showerror("Ошибка", f"При сравнении возникла ошибка:\n{str(e)}")
 
 
 if __name__ == "__main__":
