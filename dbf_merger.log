@@ -1,0 +1,8 @@
+2025-04-14 17:14:07,582 - DBFMerger - INFO - Файл успешно сохранен: /home/ivan/PycharmProjects/PythonProject/dbf_results.xlsx
+2025-04-14 17:14:07,887 - DBQuery - INFO - Успешное подключение к базе данных
+2025-04-14 17:14:07,887 - DBQuery - INFO - Соединение с базой данных закрыто
+2025-04-14 17:14:07,888 - DBFMerger - ERROR - Ошибка выполнения SQL запросов: not all arguments converted during string formatting
+2025-04-14 17:17:18,053 - DBFMerger - INFO - Файл успешно сохранен: /home/ivan/PycharmProjects/PythonProject/12070709800161/dbf_results.xlsx
+2025-04-14 17:17:18,270 - DBQuery - INFO - Успешное подключение к базе данных
+2025-04-14 17:17:38,930 - DBFMerger - INFO - Файл успешно сохранен: /home/ivan/PycharmProjects/PythonProject/12070709800161/sql_results.xlsx
+2025-04-14 17:17:38,930 - DBQuery - INFO - Соединение с базой данных закрыто
