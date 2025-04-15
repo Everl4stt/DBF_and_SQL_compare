@@ -63,7 +63,7 @@ class DBFProcessor:
                     record = records[i % len(records)]  # Циклически выбираем записи
                     for key, value in record.items():
                         if key != 'SN':
-                            merged_record[f"{key}_{filename}"] = value
+                            merged_record[f"{('e' + filename[0].lower() + '.') if key in merged_record.keys() else ''}{key}"] = value
                 merged_data.append(merged_record)
 
         return pd.DataFrame(merged_data)
@@ -73,8 +73,8 @@ class DBFProcessor:
         pairs = []
         for _, row in df.iterrows():
             # Ищем все колонки SPN и DATO в объединенных данных
-            spn_cols = [col for col in df.columns if col.startswith('SPN_')]
-            dato_cols = [col for col in df.columns if col.startswith('DATO_U')]
+            spn_cols = [col for col in df.columns if col.startswith('SPN')]
+            dato_cols = [col for col in df.columns if col.startswith('eu.DATO')]
 
             for idx, spn_col in enumerate(spn_cols):
                 filename = spn_col[4:]  # Извлекаем имя файла

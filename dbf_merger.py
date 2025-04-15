@@ -1,10 +1,10 @@
 import pandas as pd
 import logging
+import os
 from typing import Dict, Optional, Callable
 from dbf_processor import DBFProcessor
 from db_query import DBQuery
 from comparator import ResultComparator
-import os
 
 
 class DBFMerger:
@@ -50,7 +50,6 @@ class DBFMerger:
                     if self.should_stop:
                         break
 
-                    # Обновляем прогресс
                     if progress_callback:
                         progress_callback(i, total)
 
@@ -72,6 +71,7 @@ class DBFMerger:
             return None
 
     def compare_and_save(self, dbf_df: pd.DataFrame, db_df: pd.DataFrame, output_path: str) -> bool:
+        """Сравнивает и сохраняет результаты в отдельный файл"""
         try:
             comparison = self.comparator.compare_results(dbf_df, db_df)
             self.comparator.save_comparison(comparison, output_path)
