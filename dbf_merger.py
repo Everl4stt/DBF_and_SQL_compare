@@ -1,6 +1,6 @@
 import pandas as pd
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 from dbf_processor import DBFProcessor
 from db_query import DBQuery
 from comparator import ResultComparator
@@ -17,21 +17,30 @@ class DBFMerger:
     def stop(self):
         self.should_stop = True
 
-    def process_dbf(self, input_dir: str) -> Optional[pd.DataFrame]:
+    def process_dbf(self, input_dir: str) -> Tuple[Optional[pd.DataFrame], Optional[Dict]]:
         try:
             return self.dbf_processor.merge_dbf_files(input_dir)
         except Exception as e:
             self.logger.error(f"Ошибка обработки DBF: {str(e)}")
-            return None
+            return None, None
 
     def process_db_queries(self, dbf_df: pd.DataFrame, db_params: Dict) -> Optional[pd.DataFrame]:
-        if self.should_stop:
+        if self.should_stop or dbf_df.empty:
             return None
 
         try:
-            pairs = self.dbf_processor.extract_spn_dato_pairs(dbf_df)
-            if not pairs:
-                return pd.DataFrame()
+            # Получаем уникальные пары SPN/DATO
+            spn_dato_pairs = set()
+            for col in dbf_df.columns:
+                if col.startswith('SPN_'):
+                    filename = col[4:]
+                    dato_col = f"DATO_{filename}"
+                    if dato_col in dbf_df.columns:
+                        for _, row in dbf_df.iterrows():
+                            spn = row[col]
+                            dato = row[dato_col]
+                            if pd.notna(spn) and pd.notna(dato):
+                                spn_dato_pairs.add((spn, dato, filename))
 
             db_results = []
             with DBQuery(
@@ -41,16 +50,16 @@ class DBFMerger:
                     database=db_params['database']
             ) as db_query:
 
-                for pair in pairs:
+                for spn, dato, filename in spn_dato_pairs:
                     if self.should_stop:
                         break
 
-                    query = db_params['sql_query'].replace('{SPN}', str(pair['SPN'])).replace('{DATO}',
-                                                                                              str(pair['DATO']))
+                    query = db_params['sql_query'].replace('{SPN}', str(spn)).replace('{DATO}', str(dato))
                     result = db_query.execute_query(query)
                     if result:
                         for row in result:
-                            row['SN'] = pair['SN']
+                            row['SN'] = spn
+                            row['source_file'] = filename
                             db_results.append(row)
 
             return pd.DataFrame(db_results) if db_results else pd.DataFrame()

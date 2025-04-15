@@ -49,11 +49,11 @@ class DBFMergerApp:
         conn_frame.pack(fill=tk.X)
 
         ttk.Label(conn_frame, text="Хост:").grid(row=0, column=0, sticky=tk.W)
-        self.db_host = tk.StringVar(value="localhost")
+        self.db_host = tk.StringVar(value="kkoddb")
         ttk.Entry(conn_frame, textvariable=self.db_host, width=20).grid(row=0, column=1, sticky=tk.W, padx=5)
 
         ttk.Label(conn_frame, text="Пользователь:").grid(row=0, column=2, sticky=tk.W, padx=10)
-        self.db_user = tk.StringVar(value="root")
+        self.db_user = tk.StringVar(value="dbuser")
         ttk.Entry(conn_frame, textvariable=self.db_user, width=20).grid(row=0, column=3, sticky=tk.W)
 
         ttk.Label(conn_frame, text="Пароль:").grid(row=1, column=0, sticky=tk.W, pady=5)
@@ -62,7 +62,7 @@ class DBFMergerApp:
                                                                                       padx=5)
 
         ttk.Label(conn_frame, text="База данных:").grid(row=1, column=2, sticky=tk.W, padx=10)
-        self.db_name = tk.StringVar()
+        self.db_name = tk.StringVar(value="s12")
         ttk.Entry(conn_frame, textvariable=self.db_name, width=20).grid(row=1, column=3, sticky=tk.W)
 
         # SQL info
@@ -146,7 +146,13 @@ class DBFMergerApp:
             'user': self.db_user.get(),
             'password': self.db_password.get(),
             'database': self.db_name.get(),
-            'sql_query': """SELECT * FROM exportfilep ep JOIN exportfileu eu ON ep.SN = eu.SN WHERE ep.SPN = '{SPN}' AND ep.DATO = '{DATO}' AND ep.NS IN (SELECT max(ns) FROM exportfilep ep WHERE ep.SPN = '{SPN}' AND ep.DATO = '{DATO}') AND eu.NS IN (SELECT max(ns) FROM exportfilep ep WHERE ep.SPN = '{SPN}' AND ep.DATO = '{DATO}') ORDER BY ep.id, eu.id DESC"""
+            'sql_query': """SELECT * FROM exportfilep ep 
+                            JOIN exportfileu eu ON ep.SN = eu.SN 
+                            AND eu.NS IN (SELECT max(ns) FROM exportfilep ep WHERE ep.SPN = '{SPN}') 
+                            AND eu.DATO = '{DATO}' 
+                            WHERE ep.SPN = '{SPN}' 
+                            AND ep.NS IN (SELECT max(ns) FROM exportfilep ep WHERE ep.SPN = '{SPN}')
+                            """
         }
 
         Thread(target=self.run_processing, args=(db_params,), daemon=True).start()
@@ -154,7 +160,7 @@ class DBFMergerApp:
     def run_processing(self, db_params):
         try:
             # Process DBF files
-            dbf_df = self.merger.process_dbf(self.input_dir.get())
+            dbf_df, file_records = self.merger.process_dbf(self.input_dir.get())
             if dbf_df is None:
                 raise ValueError("Ошибка обработки DBF файлов")
 
@@ -163,18 +169,20 @@ class DBFMergerApp:
             if db_df is None:
                 raise ValueError("Ошибка выполнения SQL запросов")
 
-            self.results = {'dbf': dbf_df, 'db': db_df}
+            self.results = {
+                'dbf': dbf_df,
+                'db': db_df,
+                'file_records': file_records  # Сохраняем информацию о дублировании
+            }
+
             self.compare_btn.config(state=tk.NORMAL)
             self.status.set("Обработка завершена")
-            self.log_message("Обработка завершена успешно")
+            self.log_message(f"Обработано записей: {len(dbf_df)}")
+            self.log_message(f"Выполнено запросов: {len(db_df)}")
 
         except Exception as e:
             self.log_message(f"Ошибка: {str(e)}")
             self.status.set("Ошибка обработки")
-        finally:
-            self.processing = False
-            self.process_btn.config(state=tk.NORMAL)
-            self.stop_btn.config(state=tk.DISABLED)
 
     def stop_processing(self):
         self.merger.stop()
