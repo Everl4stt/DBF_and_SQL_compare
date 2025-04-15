@@ -18,6 +18,13 @@ class DBQuery:
         self.should_stop = False
         self.logger = logging.getLogger('DBQuery')
 
+    def __enter__(self):
+        self.connect()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.disconnect()
+
     def connect(self) -> bool:
         try:
             self.connection = pymysql.connect(**self.connection_params)
@@ -39,7 +46,7 @@ class DBQuery:
                 cursor.execute(query, params)
                 return cursor.fetchall()
         except Error as e:
-            self.logger.error(f"Ошибка запроса: {str(e)}")
+            self.logger.error(f"Ошибка выполнения запроса: {str(e)}")
             return None
 
     def stop(self):

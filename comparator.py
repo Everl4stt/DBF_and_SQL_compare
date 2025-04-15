@@ -1,53 +1,45 @@
 import pandas as pd
 import logging
-from typing import Dict, List
 from openpyxl.styles import PatternFill
 from openpyxl import Workbook
+from typing import Dict
 
 
 class ResultComparator:
     def __init__(self):
-        self.logger = logging.getLogger('ResultComparator')
         self.highlight_fill = PatternFill(start_color='FFFF0000', end_color='FFFF0000', fill_type='solid')
+        self.logger = logging.getLogger('ResultComparator')
 
-    def compare_results(self, dbf_df: pd.DataFrame, db_df: pd.DataFrame) -> pd.DataFrame:
-        """Сравнивает результаты и возвращает объединенный DataFrame"""
-        comparison_data = []
+    def compare_results(self, dbf_data: pd.DataFrame, db_data: pd.DataFrame) -> pd.DataFrame:
+        comparison = []
 
-        for _, dbf_row in dbf_df.iterrows():
+        for _, dbf_row in dbf_data.iterrows():
             sn = dbf_row.get('SN', '')
-            db_rows = db_df[db_df['SN'] == sn]
+            comparison.append({'Source': 'DBF', **dbf_row.to_dict()})
 
-            comparison_data.append({
-                'source': 'DBF',
-                **dbf_row.to_dict()
-            })
+            matching_db_rows = db_data[db_data['SN'] == sn]
+            for _, db_row in matching_db_rows.iterrows():
+                comparison.append({'Source': 'DB', **db_row.to_dict()})
 
-            for _, db_row in db_rows.iterrows():
-                comparison_data.append({
-                    'source': 'DB',
-                    **db_row.to_dict()
-                })
-
-        return pd.DataFrame(comparison_data)
+        return pd.DataFrame(comparison)
 
     def save_comparison(self, df: pd.DataFrame, output_path: str):
-        """Сохраняет сравнение с подсветкой различий"""
-        writer = pd.ExcelWriter(output_path, engine='openpyxl')
-        df.to_excel(writer, index=False, sheet_name='Comparison')
+        try:
+            with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False)
 
-        workbook = writer.book
-        worksheet = writer.sheets['Comparison']
+                workbook = writer.book
+                worksheet = writer.sheets['Sheet1']
 
-        # Подсветка различий
-        for row_idx in range(2, len(df) + 2):
-            if row_idx % 2 == 0:  # Строки DBF
-                dbf_row = df.iloc[row_idx - 2]
-                if row_idx < len(df) + 1 and df.iloc[row_idx - 1]['source'] == 'DB':
-                    db_row = df.iloc[row_idx - 1]
-                    for col_idx, col in enumerate(df.columns, 1):
-                        if col in dbf_row and col in db_row and dbf_row[col] != db_row[col]:
-                            worksheet.cell(row=row_idx, column=col_idx).fill = self.highlight_fill
-                            worksheet.cell(row=row_idx + 1, column=col_idx).fill = self.highlight_fill
-
-        writer.close()
+                for row in range(2, len(df) + 2):
+                    if df.iloc[row - 2]['Source'] == 'DBF' and row < len(df) + 1:
+                        if df.iloc[row - 1]['Source'] == 'DB':
+                            for col in range(1, len(df.columns) + 1):
+                                val1 = worksheet.cell(row=row, column=col).value
+                                val2 = worksheet.cell(row=row + 1, column=col).value
+                                if val1 != val2:
+                                    worksheet.cell(row=row, column=col).fill = self.highlight_fill
+                                    worksheet.cell(row=row + 1, column=col).fill = self.highlight_fill
+        except Exception as e:
+            self.logger.error(f"Ошибка сохранения сравнения: {str(e)}")
+            raise
