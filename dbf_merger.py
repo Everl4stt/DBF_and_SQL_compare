@@ -1,6 +1,6 @@
 import pandas as pd
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, Callable
 from dbf_processor import DBFProcessor
 from db_query import DBQuery
 from comparator import ResultComparator
@@ -20,8 +20,7 @@ class DBFMerger:
     def process_dbf(self, input_dir: str) -> Optional[pd.DataFrame]:
         try:
             dbf_df = self.dbf_processor.merge_dbf_files(input_dir)
-            # Сохраняем результат мерджа DBF в Excel
-            self._save_to_excel(dbf_df, "dbf_merged_results.xlsx", "DBF_Merged")
+            self._save_to_excel(dbf_df, "dbf_merged.xlsx", "Merged_DBF")
             return dbf_df
         except Exception as e:
             self.logger.error(f"Ошибка обработки DBF: {str(e)}")
@@ -36,7 +35,10 @@ class DBFMerger:
             if not pairs:
                 return pd.DataFrame()
 
+            total = len(pairs)
             db_results = []
+            progress_callback = db_params.get('progress_callback')
+
             with DBQuery(
                     host=db_params['host'],
                     user=db_params['user'],
@@ -44,9 +46,13 @@ class DBFMerger:
                     database=db_params['database']
             ) as db_query:
 
-                for pair in pairs:
+                for i, pair in enumerate(pairs, 1):
                     if self.should_stop:
                         break
+
+                    # Обновляем прогресс
+                    if progress_callback:
+                        progress_callback(i, total)
 
                     query = db_params['sql_query'].replace('{SPN}', str(pair['SPN'])).replace('{DATO}',
                                                                                               str(pair['DATO']))
@@ -54,11 +60,11 @@ class DBFMerger:
                     if result:
                         for row in result:
                             row['SN'] = pair['SN']
+                            row['source_file'] = pair['source_file']
                             db_results.append(row)
 
             db_df = pd.DataFrame(db_results) if db_results else pd.DataFrame()
-            # Сохраняем результаты запросов в Excel
-            self._save_to_excel(db_df, "db_query_results.xlsx", "DB_Results")
+            self._save_to_excel(db_df, "db_results.xlsx", "DB_Results")
             return db_df
 
         except Exception as e:
@@ -81,7 +87,7 @@ class DBFMerger:
             filepath = os.path.join("results", filename)
             with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
                 df.to_excel(writer, sheet_name=sheet_name, index=False)
-            self.logger.info(f"Результаты сохранены в {filepath}")
+            self.logger.info(f"Файл сохранен: {filepath}")
         except Exception as e:
-            self.logger.error(f"Ошибка сохранения в Excel: {str(e)}")
+            self.logger.error(f"Ошибка сохранения Excel: {str(e)}")
             raise

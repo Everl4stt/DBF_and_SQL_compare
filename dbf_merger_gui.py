@@ -9,8 +9,8 @@ from dbf_merger import DBFMerger
 class DBFMergerApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Vasyatkinator 3000")
-        self.root.geometry("850x700")
+        self.root.title("Vasyatkinator 3000 v0.8")
+        self.root.geometry("850x750")
 
         self.merger = DBFMerger()
         self.processing = False
@@ -27,7 +27,6 @@ class DBFMergerApp:
         )
 
     def setup_ui(self):
-        # Main Frame
         main_frame = ttk.Frame(self.root, padding=10)
         main_frame.pack(fill=tk.BOTH, expand=True)
 
@@ -44,31 +43,34 @@ class DBFMergerApp:
         db_frame = ttk.LabelFrame(main_frame, text="MariaDB", padding=10)
         db_frame.pack(fill=tk.X, pady=5)
 
-        # Connection parameters
-        conn_frame = ttk.Frame(db_frame)
-        conn_frame.pack(fill=tk.X)
-
-        ttk.Label(conn_frame, text="Хост:").grid(row=0, column=0, sticky=tk.W)
+        ttk.Label(db_frame, text="Хост:").grid(row=0, column=0, sticky=tk.W)
         self.db_host = tk.StringVar(value="kkoddb")
-        ttk.Entry(conn_frame, textvariable=self.db_host, width=20).grid(row=0, column=1, sticky=tk.W, padx=5)
+        ttk.Entry(db_frame, textvariable=self.db_host, width=20).grid(row=0, column=1, sticky=tk.W, padx=5)
 
-        ttk.Label(conn_frame, text="Пользователь:").grid(row=0, column=2, sticky=tk.W, padx=10)
+        ttk.Label(db_frame, text="Пользователь:").grid(row=0, column=2, sticky=tk.W, padx=10)
         self.db_user = tk.StringVar(value="dbuser")
-        ttk.Entry(conn_frame, textvariable=self.db_user, width=20).grid(row=0, column=3, sticky=tk.W)
+        ttk.Entry(db_frame, textvariable=self.db_user, width=20).grid(row=0, column=3, sticky=tk.W)
 
-        ttk.Label(conn_frame, text="Пароль:").grid(row=1, column=0, sticky=tk.W, pady=5)
-        self.db_password = tk.StringVar()
-        ttk.Entry(conn_frame, textvariable=self.db_password, width=20, show="*").grid(row=1, column=1, sticky=tk.W,
-                                                                                      padx=5)
+        ttk.Label(db_frame, text="Пароль:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        self.db_password = tk.StringVar(value="dbpassword")
+        ttk.Entry(db_frame, textvariable=self.db_password, width=20, show="*").grid(row=1, column=1, sticky=tk.W,
+                                                                                    padx=5)
 
-        ttk.Label(conn_frame, text="База данных:").grid(row=1, column=2, sticky=tk.W, padx=10)
+        ttk.Label(db_frame, text="База данных:").grid(row=1, column=2, sticky=tk.W, padx=10)
         self.db_name = tk.StringVar(value="s12")
-        ttk.Entry(conn_frame, textvariable=self.db_name, width=20).grid(row=1, column=3, sticky=tk.W)
+        ttk.Entry(db_frame, textvariable=self.db_name, width=20).grid(row=1, column=3, sticky=tk.W)
 
-        # SQL info
-        ttk.Label(db_frame, text="SQL запрос загружается из config.ini").pack(anchor=tk.W)
+        # Progress Bar
+        progress_frame = ttk.Frame(main_frame)
+        progress_frame.pack(fill=tk.X, pady=10)
 
-        # Output
+        self.progress_label = ttk.Label(progress_frame, text="Готов к работе")
+        self.progress_label.pack(side=tk.TOP, fill=tk.X)
+
+        self.progress = ttk.Progressbar(progress_frame, orient=tk.HORIZONTAL, mode='determinate')
+        self.progress.pack(fill=tk.X)
+
+        # Output Section
         output_frame = ttk.LabelFrame(main_frame, text="Результаты", padding=10)
         output_frame.pack(fill=tk.X, pady=5)
 
@@ -123,11 +125,13 @@ class DBFMergerApp:
         if file_path:
             self.output_file.set(file_path)
 
-    def log_message(self, message):
-        self.log_text.config(state=tk.NORMAL)
-        self.log_text.insert(tk.END, message + "\n")
-        self.log_text.see(tk.END)
-        self.log_text.config(state=tk.DISABLED)
+    def update_progress(self, current: int, total: int):
+        """Обновляет прогресс-бар"""
+        if total > 0:
+            percent = (current / total) * 100
+            self.progress['value'] = percent
+            self.progress_label.config(text=f"Обработка: {current}/{total} ({percent:.1f}%)")
+        self.root.update_idletasks()
 
     def start_processing(self):
         if not self.input_dir.get():
@@ -139,6 +143,7 @@ class DBFMergerApp:
         self.stop_btn.config(state=tk.NORMAL)
         self.compare_btn.config(state=tk.DISABLED)
         self.status.set("Обработка...")
+        self.progress['value'] = 0
         self.log_message("Начало обработки")
 
         db_params = {
@@ -146,13 +151,14 @@ class DBFMergerApp:
             'user': self.db_user.get(),
             'password': self.db_password.get(),
             'database': self.db_name.get(),
-            'sql_query': """SELECT * FROM exportfilep ep 
+            'sql_query': """
+                            SELECT * FROM exportfilep ep
                             JOIN exportfileu eu ON ep.SN = eu.SN 
-                            AND eu.NS IN (SELECT max(ns) FROM exportfilep ep WHERE ep.SPN = '{SPN}') 
-                            AND eu.DATO = '{DATO}' 
-                            WHERE ep.SPN = '{SPN}' 
-                            AND ep.NS IN (SELECT max(ns) FROM exportfilep ep WHERE ep.SPN = '{SPN}')
-                            """
+                            AND eu.NS = (SELECT MAX(ep.NS) FROM exportfilep ep WHERE ep.SPN = '{SPN}')
+                            WHERE ep.NS = (SELECT MAX(ep.NS) FROM exportfilep ep WHERE ep.SPN = '{SPN}') 
+                            AND ep.SPN = '{SPN}' AND eu.DATO = '{DATO}'
+                            """,
+            'progress_callback': self.update_progress  # Добавляем callback для прогресса
         }
 
         Thread(target=self.run_processing, args=(db_params,), daemon=True).start()
@@ -160,11 +166,13 @@ class DBFMergerApp:
     def run_processing(self, db_params):
         try:
             # Process DBF files
+            self.log_message("Обработка DBF файлов...")
             dbf_df = self.merger.process_dbf(self.input_dir.get())
             if dbf_df is None:
                 raise ValueError("Ошибка обработки DBF файлов")
 
             # Process DB queries
+            self.log_message("Выполнение SQL запросов...")
             db_df = self.merger.process_db_queries(dbf_df, db_params)
             if db_df is None:
                 raise ValueError("Ошибка выполнения SQL запросов")
@@ -172,11 +180,14 @@ class DBFMergerApp:
             self.results = {'dbf': dbf_df, 'db': db_df}
             self.compare_btn.config(state=tk.NORMAL)
             self.status.set("Обработка завершена")
+            self.progress['value'] = 100
+            self.progress_label.config(text="Обработка завершена")
             self.log_message("Обработка завершена успешно")
 
         except Exception as e:
             self.log_message(f"Ошибка: {str(e)}")
             self.status.set("Ошибка обработки")
+            self.progress_label.config(text=f"Ошибка: {str(e)}")
         finally:
             self.processing = False
             self.process_btn.config(state=tk.NORMAL)
@@ -186,6 +197,12 @@ class DBFMergerApp:
         self.merger.stop()
         self.status.set("Завершение...")
         self.log_message("Получена команда остановки...")
+
+    def log_message(self, message):
+        self.log_text.config(state=tk.NORMAL)
+        self.log_text.insert(tk.END, message + "\n")
+        self.log_text.see(tk.END)
+        self.log_text.config(state=tk.DISABLED)
 
     def compare_results(self):
         if not self.results or not self.output_file.get():

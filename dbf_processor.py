@@ -74,19 +74,17 @@ class DBFProcessor:
         for _, row in df.iterrows():
             # Ищем все колонки SPN и DATO в объединенных данных
             spn_cols = [col for col in df.columns if col.startswith('SPN_')]
-            dato_cols = [col for col in df.columns if col.startswith('DATO_')]
+            dato_cols = [col for col in df.columns if col.startswith('DATO_U')]
 
-            for spn_col in spn_cols:
+            for idx, spn_col in enumerate(spn_cols):
                 filename = spn_col[4:]  # Извлекаем имя файла
-                dato_col = f"DATO_{filename}"
-                if dato_col in df.columns:
-                    spn = row[spn_col]
-                    dato = row[dato_col]
-                    if pd.notna(spn) and pd.notna(dato):
-                        pairs.append({
-                            'SN': row['SN'],
-                            'SPN': spn,
-                            'DATO': dato,
-                            'source_file': filename
-                        })
+                spn = row[spn_col]
+                dato = row[dato_cols[idx]]
+                if pd.notna(spn) and pd.notna(dato):
+                    pairs.append({
+                        'SN': row['SN'],
+                        'SPN': spn,
+                        'DATO': dato,
+                        'source_file': filename
+                    })
         return pairs
