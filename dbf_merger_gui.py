@@ -9,7 +9,7 @@ from dbf_merger import DBFMerger
 class DBFMergerApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("DBF и MariaDB обработчик")
+        self.root.title("Vasyatkinator 3000")
         self.root.geometry("850x700")
 
         self.merger = DBFMerger()
@@ -160,7 +160,7 @@ class DBFMergerApp:
     def run_processing(self, db_params):
         try:
             # Process DBF files
-            dbf_df, file_records = self.merger.process_dbf(self.input_dir.get())
+            dbf_df = self.merger.process_dbf(self.input_dir.get())
             if dbf_df is None:
                 raise ValueError("Ошибка обработки DBF файлов")
 
@@ -169,20 +169,18 @@ class DBFMergerApp:
             if db_df is None:
                 raise ValueError("Ошибка выполнения SQL запросов")
 
-            self.results = {
-                'dbf': dbf_df,
-                'db': db_df,
-                'file_records': file_records  # Сохраняем информацию о дублировании
-            }
-
+            self.results = {'dbf': dbf_df, 'db': db_df}
             self.compare_btn.config(state=tk.NORMAL)
             self.status.set("Обработка завершена")
-            self.log_message(f"Обработано записей: {len(dbf_df)}")
-            self.log_message(f"Выполнено запросов: {len(db_df)}")
+            self.log_message("Обработка завершена успешно")
 
         except Exception as e:
             self.log_message(f"Ошибка: {str(e)}")
             self.status.set("Ошибка обработки")
+        finally:
+            self.processing = False
+            self.process_btn.config(state=tk.NORMAL)
+            self.stop_btn.config(state=tk.DISABLED)
 
     def stop_processing(self):
         self.merger.stop()
