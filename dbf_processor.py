@@ -15,7 +15,7 @@ class DBFProcessor:
 
         all_data = []
         for filename in os.listdir(input_dir):
-            if not filename.lower().endswith('.dbf'):
+            if not filename.lower().endswith('.dbf') or filename.lower()[0] == 'd':
                 continue
 
             filepath = os.path.join(input_dir, filename)
