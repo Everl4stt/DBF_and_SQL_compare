@@ -19,7 +19,10 @@ class DBFMerger:
 
     def process_dbf(self, input_dir: str) -> Optional[pd.DataFrame]:
         try:
-            return self.dbf_processor.merge_dbf_files(input_dir)
+            dbf_df = self.dbf_processor.merge_dbf_files(input_dir)
+            # Сохраняем результат мерджа DBF в Excel
+            self._save_to_excel(dbf_df, "dbf_merged_results.xlsx", "DBF_Merged")
+            return dbf_df
         except Exception as e:
             self.logger.error(f"Ошибка обработки DBF: {str(e)}")
             return None
@@ -53,7 +56,10 @@ class DBFMerger:
                             row['SN'] = pair['SN']
                             db_results.append(row)
 
-            return pd.DataFrame(db_results) if db_results else pd.DataFrame()
+            db_df = pd.DataFrame(db_results) if db_results else pd.DataFrame()
+            # Сохраняем результаты запросов в Excel
+            self._save_to_excel(db_df, "db_query_results.xlsx", "DB_Results")
+            return db_df
 
         except Exception as e:
             self.logger.error(f"Ошибка выполнения запросов: {str(e)}")
@@ -67,3 +73,15 @@ class DBFMerger:
         except Exception as e:
             self.logger.error(f"Ошибка сравнения: {str(e)}")
             return False
+
+    def _save_to_excel(self, df: pd.DataFrame, filename: str, sheet_name: str):
+        """Сохраняет DataFrame в Excel файл"""
+        try:
+            os.makedirs("results", exist_ok=True)
+            filepath = os.path.join("results", filename)
+            with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
+                df.to_excel(writer, sheet_name=sheet_name, index=False)
+            self.logger.info(f"Результаты сохранены в {filepath}")
+        except Exception as e:
+            self.logger.error(f"Ошибка сохранения в Excel: {str(e)}")
+            raise
