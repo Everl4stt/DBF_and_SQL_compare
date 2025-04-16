@@ -10,8 +10,8 @@ class ResultComparator:
     def __init__(self):
         # Стили для оформления
         self.diff_fill = PatternFill(
-            start_color='FFFF0000',  # Красный для различий
-            end_color='FFFF0000',
+            start_color='CD5C5C',  # Красный для различий
+            end_color='CD5C5C',
             fill_type='solid'
         )
         self.dbf_fill = PatternFill(
@@ -31,6 +31,7 @@ class ResultComparator:
         )
         self.header_font = Font(bold=True)
         self.logger = logging.getLogger('ResultComparator')
+        self.count_compare = 0
 
     def compare_results(self, dbf_df: pd.DataFrame, db_df: pd.DataFrame) -> List[Dict]:
         """Сравнивает два DataFrame по строкам с одинаковыми SPN и DATO"""
@@ -75,7 +76,15 @@ class ResultComparator:
                         dbf_val = dbf_row[col] if col in dbf_row else None
                         db_val = db_row[col] if col in db_row else None
 
-                        status = 'MATCH' if dbf_val == db_val else 'DIFF'
+                        if isinstance(dbf_val, str) and isinstance(db_val, str):
+                            dbf_val = dbf_val.capitalize()
+                            db_val = db_val.capitalize()
+
+                        if dbf_val == db_val or (not dbf_val and not dbf_val) or (col in ('SN', 'NS', 'RKEY', 'UID', 'TAL_N')):
+                            status = 'MATCH'
+                        else:
+                            status = 'DIFF'
+                            self.count_compare += 1
 
                         comparison_results.append({
                             'Type': 'Data',
@@ -95,6 +104,11 @@ class ResultComparator:
                     })
 
         return comparison_results
+
+    def get_count_compare(self):
+        tmp = self.count_compare
+        self.count_compare = 0
+        return tmp
 
     def _find_common_columns(self, cols1: List[str], cols2: List[str]) -> List[str]:
         """Находит общие колонки без учета префиксов"""
@@ -144,11 +158,9 @@ class ResultComparator:
                     for cell in ws[current_row]:
                         cell.fill = self.diff_fill
                 else:
-                    # Заливка для DBF и DB значений
                     ws.cell(row=current_row, column=2).fill = self.dbf_fill
                     ws.cell(row=current_row, column=3).fill = self.db_fill
 
-            # Автонастройка ширины колонок
             for column in ws.columns:
                 max_length = 0
                 column_cells = [cell for cell in column]

@@ -13,6 +13,7 @@ class DBFMerger:
         self.comparator = ResultComparator()
         self.logger = logging.getLogger('DBFMerger')
         self.should_stop = False
+        self.count_compare = 0
 
     def stop(self):
         self.should_stop = True
@@ -55,10 +56,11 @@ class DBFMerger:
 
                     query = db_params['sql_query'].replace('{SPN}', str(pair['SPN'])).replace('{DATO}',
                                                                                               str(pair['DATO']))
+                    print(f'{i}. {query}')
                     result = db_query.execute_query(query)
                     if result:
                         for row in result:
-                            row['SN'] = pair['SN']
+                            row['SPN'] = pair['SPN']
                             row['source_file'] = pair['source_file']
                             db_results.append(row)
 
@@ -75,10 +77,16 @@ class DBFMerger:
         try:
             comparison = self.comparator.compare_results(dbf_df, db_df)
             self.comparator.save_comparison(comparison, output_path)
+            self.count_compare += self.comparator.get_count_compare()
             return True
         except Exception as e:
             self.logger.error(f"Ошибка сравнения: {str(e)}")
             return False
+
+    def get_count_compare(self):
+        tmp = self.count_compare
+        self.count_compare = 0
+        return tmp
 
     def _save_to_excel(self, df: pd.DataFrame, filename: str, sheet_name: str):
         """Сохраняет DataFrame в Excel файл"""

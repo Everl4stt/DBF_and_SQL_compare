@@ -9,7 +9,7 @@ from dbf_merger import DBFMerger
 class DBFMergerApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Vasyatkinator 3000 v0.8")
+        self.root.title("Vasyatkinator 3000 v0.9")
         self.root.geometry("850x750")
 
         self.merger = DBFMerger()
@@ -220,6 +220,7 @@ class DBFMergerApp:
             if success:
                 self.status.set("Сравнение завершено")
                 self.log_message(f"Результаты сохранены в {self.output_file.get()}")
+                self.log_message(f"\nВыявлено отличий: {self.merger.get_count_compare()}")
                 messagebox.showinfo("Готово", "Сравнение результатов завершено!")
             else:
                 raise ValueError("Ошибка при сохранении результатов")
