@@ -17,6 +17,7 @@ class DBQuery:
         self.connection = None
         self.should_stop = False
         self.logger = logging.getLogger('DBQuery')
+        self.count_not_found = 0
 
     def __enter__(self):
         self.connect()
@@ -44,10 +45,18 @@ class DBQuery:
         try:
             with self.connection.cursor() as cursor:
                 cursor.execute(query, params)
-                return cursor.fetchall()
+                res = cursor.fetchall()
+                if not res:
+                    self.count_not_found += 1
+                return res
         except Error as e:
             self.logger.error(f"Ошибка выполнения запроса: {str(e)}")
             return None
 
     def stop(self):
         self.should_stop = True
+
+    def get_not_found(self):
+        tmp = self.count_not_found
+        self.count_not_found = 0
+        return tmp

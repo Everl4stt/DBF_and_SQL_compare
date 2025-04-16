@@ -4,6 +4,7 @@ from openpyxl.styles import PatternFill, Font
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.workbook import Workbook
 from typing import List, Dict
+from config import exclude_cols
 
 
 class ResultComparator:
@@ -80,7 +81,7 @@ class ResultComparator:
                             dbf_val = dbf_val.capitalize()
                             db_val = db_val.capitalize()
 
-                        if dbf_val == db_val or (not dbf_val and not dbf_val) or (col in ('SN', 'NS', 'RKEY', 'UID', 'TAL_N')):
+                        if dbf_val == db_val or (not dbf_val and not dbf_val) or (col in exclude_cols):
                             status = 'MATCH'
                         else:
                             status = 'DIFF'
@@ -111,10 +112,10 @@ class ResultComparator:
         return tmp
 
     def _find_common_columns(self, cols1: List[str], cols2: List[str]) -> List[str]:
-        """Находит общие колонки без учета префиксов"""
+        """Находит общие колонки"""
         # Удаляем префиксы (DBF_, DB_ и т.д.)
-        base_cols1 = {col.split('.')[-1] for col in cols1}
-        base_cols2 = {col.split('.')[-1] for col in cols2}
+        base_cols1 = {col for col in cols1}
+        base_cols2 = {col for col in cols2}
 
         return list(base_cols1 & base_cols2)
 

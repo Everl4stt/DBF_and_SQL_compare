@@ -4,6 +4,7 @@ import os
 import logging
 from threading import Thread
 from dbf_merger import DBFMerger
+from config import main_query
 
 
 class DBFMergerApp:
@@ -31,7 +32,7 @@ class DBFMergerApp:
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         # DBF Section
-        dbf_frame = ttk.LabelFrame(main_frame, text="DBF файлы", padding=10)
+        dbf_frame = ttk.LabelFrame(main_frame, text="Каталог DBF файлов", padding=10)
         dbf_frame.pack(fill=tk.X, pady=5)
 
         ttk.Label(dbf_frame, text="Каталог с DBF:").grid(row=0, column=0, sticky=tk.W)
@@ -40,7 +41,7 @@ class DBFMergerApp:
         ttk.Button(dbf_frame, text="Обзор...", command=self.browse_input_dir).grid(row=0, column=2)
 
         # DB Section
-        db_frame = ttk.LabelFrame(main_frame, text="MariaDB", padding=10)
+        db_frame = ttk.LabelFrame(main_frame, text="Подключение к БД", padding=10)
         db_frame.pack(fill=tk.X, pady=5)
 
         ttk.Label(db_frame, text="Хост:").grid(row=0, column=0, sticky=tk.W)
@@ -93,11 +94,6 @@ class DBFMergerApp:
                                       state=tk.DISABLED)
         self.compare_btn.pack(side=tk.LEFT, padx=5)
 
-        # Status
-        self.status = tk.StringVar(value="Готов к работе")
-        status_bar = ttk.Label(main_frame, textvariable=self.status, relief=tk.SUNKEN)
-        status_bar.pack(fill=tk.X, pady=5)
-
         # Log
         log_frame = ttk.LabelFrame(main_frame, text="Лог", padding=10)
         log_frame.pack(fill=tk.BOTH, expand=True)
@@ -142,7 +138,6 @@ class DBFMergerApp:
         self.process_btn.config(state=tk.DISABLED)
         self.stop_btn.config(state=tk.NORMAL)
         self.compare_btn.config(state=tk.DISABLED)
-        self.status.set("Обработка...")
         self.progress['value'] = 0
         self.log_message("Начало обработки")
 
@@ -151,13 +146,7 @@ class DBFMergerApp:
             'user': self.db_user.get(),
             'password': self.db_password.get(),
             'database': self.db_name.get(),
-            'sql_query': """
-                            SELECT * FROM exportfilep ep
-                            JOIN exportfileu eu ON ep.SN = eu.SN 
-                            AND eu.NS = (SELECT MAX(ep.NS) FROM exportfilep ep WHERE ep.SPN = '{SPN}')
-                            WHERE ep.NS = (SELECT MAX(ep.NS) FROM exportfilep ep WHERE ep.SPN = '{SPN}') 
-                            AND ep.SPN = '{SPN}' AND eu.DATO = '{DATO}'
-                            """,
+            'sql_query': main_query,
             'progress_callback': self.update_progress  # Добавляем callback для прогресса
         }
 
@@ -179,14 +168,13 @@ class DBFMergerApp:
 
             self.results = {'dbf': dbf_df, 'db': db_df}
             self.compare_btn.config(state=tk.NORMAL)
-            self.status.set("Обработка завершена")
             self.progress['value'] = 100
             self.progress_label.config(text="Обработка завершена")
             self.log_message("Обработка завершена успешно")
+            self.log_message(f"Не найдено записей в базе: {self.merger.get_not_found()}")
 
         except Exception as e:
             self.log_message(f"Ошибка: {str(e)}")
-            self.status.set("Ошибка обработки")
             self.progress_label.config(text=f"Ошибка: {str(e)}")
         finally:
             self.processing = False
@@ -195,7 +183,6 @@ class DBFMergerApp:
 
     def stop_processing(self):
         self.merger.stop()
-        self.status.set("Завершение...")
         self.log_message("Получена команда остановки...")
 
     def log_message(self, message):
@@ -210,7 +197,6 @@ class DBFMergerApp:
             return
 
         try:
-            self.status.set("Сравнение результатов...")
             success = self.merger.compare_and_save(
                 self.results['dbf'],
                 self.results['db'],
@@ -218,7 +204,6 @@ class DBFMergerApp:
             )
 
             if success:
-                self.status.set("Сравнение завершено")
                 self.log_message(f"Результаты сохранены в {self.output_file.get()}")
                 self.log_message(f"\nВыявлено отличий: {self.merger.get_count_compare()}")
                 messagebox.showinfo("Готово", "Сравнение результатов завершено!")

@@ -14,6 +14,7 @@ class DBFMerger:
         self.logger = logging.getLogger('DBFMerger')
         self.should_stop = False
         self.count_compare = 0
+        self.not_found = 0
 
     def stop(self):
         self.should_stop = True
@@ -63,7 +64,7 @@ class DBFMerger:
                             row['SPN'] = pair['SPN']
                             row['source_file'] = pair['source_file']
                             db_results.append(row)
-
+                self.not_found += db_query.get_not_found()
             db_df = pd.DataFrame(db_results) if db_results else pd.DataFrame()
             self._save_to_excel(db_df, "db_results.xlsx", "DB_Results")
             return db_df
@@ -86,6 +87,11 @@ class DBFMerger:
     def get_count_compare(self):
         tmp = self.count_compare
         self.count_compare = 0
+        return tmp
+
+    def get_not_found(self):
+        tmp = self.not_found
+        self.not_found = 0
         return tmp
 
     def _save_to_excel(self, df: pd.DataFrame, filename: str, sheet_name: str):
