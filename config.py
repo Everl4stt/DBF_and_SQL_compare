@@ -12,3 +12,11 @@ main_query = """
                 AND ep.SPN = '{SPN}' AND eu.DATO = '{DATO}'
             """
 
+client_policy_query = """
+                        SELECT cp.number FROM ClientPolicy cp
+                        JOIN Client ON cp.client_id = Client.id                           
+                      """
+
+exportfile_query = """
+                      SELECT * FROM exportfile tbl WHERE {col} = '{value}'
+                    """
